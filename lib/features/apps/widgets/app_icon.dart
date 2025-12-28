@@ -1,16 +1,10 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../app_providers.dart';
 import '../../../theme/palette_ext.dart';
 
-/// Small square icon used across the app list & group screens.
-///
-/// If [iconPng] is null, this widget will *optionally* try to lazy-load the icon
-/// from the platform side via [appIconPngProvider].
+/// Modern app icon with proper image loading
 class AppIcon extends ConsumerWidget {
   final String packageName;
   final Uint8List? iconPng;
@@ -21,43 +15,58 @@ class AppIcon extends ConsumerWidget {
     super.key,
     required this.packageName,
     required this.iconPng,
-    this.size = 38,
-    this.radius = 14,
+    this.size = 56,
+    this.radius = 18,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = context.palette;
 
-    final lazy = iconPng == null
-        ? ref
-              .watch(appIconPngProvider(packageName))
-              .whenData((data) => data)
-              .value
-        : iconPng;
+    // Try to get icon from provider if not provided
+    final Uint8List? effectiveIcon =
+        iconPng ??
+        ref
+            .watch(appIconPngProvider(packageName))
+            .whenOrNull(data: (data) => data);
 
-    return Neumorphic(
-      style: NeumorphicStyle(
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
         color: p.surfaceVariant,
-        depth: 2,
-        boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(radius)),
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(color: p.shadow, blurRadius: 8, offset: const Offset(0, 2)),
+        ],
       ),
-      padding: const EdgeInsets.all(10),
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: lazy == null
-            ? Icon(Icons.apps_rounded, color: p.onBackground)
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.memory(
-                  lazy,
-                  fit: BoxFit.cover,
-                  gaplessPlayback: true,
-                  // hint to decode smaller (helps memory) while still crisp.
-                  cacheWidth: 96,
-                  cacheHeight: 96,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: effectiveIcon == null
+            ? Center(
+                child: Icon(
+                  Icons.apps_rounded,
+                  color: p.onSurfaceVariant,
+                  size: size * 0.5,
                 ),
+              )
+            : Image.memory(
+                effectiveIcon,
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                cacheWidth: (size * 2).toInt(),
+                cacheHeight: (size * 2).toInt(),
+                gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Icon(
+                      Icons.apps_rounded,
+                      color: p.onSurfaceVariant,
+                      size: size * 0.5,
+                    ),
+                  );
+                },
               ),
       ),
     );

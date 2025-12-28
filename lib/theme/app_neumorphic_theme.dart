@@ -1,193 +1,119 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppNeumorphicTheme {
-  // ---------- LIGHT PALETTE (from your spec) ----------
-  static const _light = _Scheme(
-    primary: Color(0xFF4F46E5),
-    onPrimary: Color(0xFFFFFFFF),
-    primaryContainer: Color(0xFFE0E7FF),
-    onPrimaryContainer: Color(0xFF1E1B4B),
-    secondary: Color(0xFF14B8A6),
-    onSecondary: Color(0xFFFFFFFF),
-    secondaryContainer: Color(0xFFCCFBF1),
-    onSecondaryContainer: Color(0xFF042F2E),
-    tertiary: Color(0xFFF59E0B),
-    onTertiary: Color(0xFF1F1300),
-    background: Color(0xFFF8FAFC),
-    onBackground: Color(0xFF0F172A),
-    surface: Color(0xFFFFFFFF),
-    onSurface: Color(0xFF0F172A),
-    surfaceVariant: Color(0xFFEEF2F7),
-    onSurfaceVariant: Color(0xFF334155),
-    outline: Color(0xFFCBD5E1),
-    outlineVariant: Color(0xFFE2E8F0),
-    error: Color(0xFFDC2626),
-    onError: Color(0xFFFFFFFF),
-    errorContainer: Color(0xFFFEE2E2),
-    onErrorContainer: Color(0xFF450A0A),
-    inverseSurface: Color(0xFF0F172A),
-    onInverseSurface: Color(0xFFF8FAFC),
-    brightness: Brightness.light,
-  );
+  // Modern color palette
+  static const _lightBackground = Color(0xFFF5F7FA);
+  static const _lightSurface = Color(0xFFFFFFFF);
+  static const _lightPrimary = Color(0xFF6366F1); // Indigo
+  static const _lightSecondary = Color(0xFF8B5CF6); // Purple
+  static const _lightAccent = Color(0xFF06B6D4); // Cyan
 
-  // ---------- DARK PALETTE (from your spec) ----------
-  static const _dark = _Scheme(
-    primary: Color(0xFF818CF8),
-    onPrimary: Color(0xFF0B1220),
-    primaryContainer: Color(0xFF2A2F6F),
-    onPrimaryContainer: Color(0xFFE0E7FF),
-    secondary: Color(0xFF2DD4BF),
-    onSecondary: Color(0xFF062A2A),
-    secondaryContainer: Color(0xFF0F3D3A),
-    onSecondaryContainer: Color(0xFFCCFBF1),
-    tertiary: Color(0xFFFBBF24),
-    onTertiary: Color(0xFF1F1300),
-    background: Color(0xFF0B1220),
-    onBackground: Color(0xFFE5E7EB),
-    surface: Color(0xFF111827),
-    onSurface: Color(0xFFE5E7EB),
-    surfaceVariant: Color(0xFF1F2937),
-    onSurfaceVariant: Color(0xFFCBD5E1),
-    outline: Color(0xFF334155),
-    outlineVariant: Color(0xFF1F2A3A),
-    error: Color(0xFFF87171),
-    onError: Color(0xFF3B0A0A),
-    errorContainer: Color(0xFF4C1010),
-    onErrorContainer: Color(0xFFFEE2E2),
-    inverseSurface: Color(0xFFE5E7EB),
-    onInverseSurface: Color(0xFF0B1220),
-    brightness: Brightness.dark,
-  );
+  static const _darkBackground = Color(0xFF0F172A);
+  static const _darkSurface = Color(0xFF1E293B);
+  static const _darkPrimary = Color(0xFF818CF8);
+  static const _darkSecondary = Color(0xFFA78BFA);
+  static const _darkAccent = Color(0xFF22D3EE);
 
-  static NeumorphicThemeData lightTheme() => _build(_light);
-  static NeumorphicThemeData darkTheme() => _build(_dark);
-
-  static NeumorphicThemeData _build(_Scheme s) {
-    // flutter_neumorphic_plus theme expects TextTheme (NOT NeumorphicTextThemeData).
-    final textTheme = _appTextTheme(s);
-
-    // Neumorphic "baseColor" should be the canvas/background the UI sits on.
-    // "accentColor" is used by neumorphic components as highlight color.
+  static NeumorphicThemeData lightTheme() {
     return NeumorphicThemeData(
-      baseColor: s.background,
-      accentColor: s.secondary,
-      variantColor: s.surfaceVariant,
-      defaultTextColor: s.onBackground,
-      textTheme: textTheme,
-      iconTheme: IconThemeData(color: s.onBackground),
-      borderColor: s.outline,
-      borderWidth: 1,
-
-      // Depth/intensity tuning (feel free to tweak)
-      depth: s.brightness == Brightness.light ? 6 : 5,
-      intensity: s.brightness == Brightness.light ? 0.75 : 0.85,
+      baseColor: _lightBackground,
       lightSource: LightSource.topLeft,
-
-      // Shadows: keep subtle in dark mode to avoid “muddy” look
-      shadowDarkColor: s.brightness == Brightness.light
-          ? const Color(0x33000000)
-          : const Color(0xCC000000),
-      shadowLightColor: s.brightness == Brightness.light
-          ? const Color(0xFFFFFFFF)
-          : const Color(0x1AFFFFFF),
+      depth: 4,
+      intensity: 0.5,
+      textTheme: GoogleFonts.interTextTheme(),
     );
   }
 
-  static TextTheme _appTextTheme(_Scheme s) {
-    // Your typography tokens (Inter -> Roboto -> system-ui)
-    const family = 'Inter';
-    const fallbacks = <String>['Roboto', 'system-ui'];
-
-    TextStyle style(double size, FontWeight w, double lh) => TextStyle(
-      fontFamily: family,
-      fontFamilyFallback: fallbacks,
-      fontSize: size,
-      fontWeight: w,
-      height: lh,
-      color: s.onBackground,
-    );
-
-    return TextTheme(
-      // display: 32 / 700 / 1.20
-      displayLarge: style(32, FontWeight.w700, 1.20),
-
-      // headline: 24 / 700 / 1.25
-      headlineMedium: style(24, FontWeight.w700, 1.25),
-
-      // title: 20 / 600 / 1.30
-      titleLarge: style(20, FontWeight.w600, 1.30),
-
-      // subtitle: 16 / 600 / 1.35
-      titleMedium: style(16, FontWeight.w600, 1.35),
-
-      // body: 16 / 400 / 1.50
-      bodyLarge: style(16, FontWeight.w400, 1.50),
-
-      // bodySmall: 14 / 400 / 1.45
-      bodyMedium: style(14, FontWeight.w400, 1.45),
-
-      // label: 12 / 600 / 1.20
-      labelSmall: style(12, FontWeight.w600, 1.20),
-
-      // button: 14 / 600 / 1.20
-      labelLarge: style(14, FontWeight.w600, 1.20),
+  static NeumorphicThemeData darkTheme() {
+    return NeumorphicThemeData(
+      baseColor: _darkBackground,
+      lightSource: LightSource.topLeft,
+      depth: 6,
+      intensity: 0.3,
+      textTheme: GoogleFonts.interTextTheme(),
     );
   }
+
+  // Extended color system
+  static ColorPalette light() => ColorPalette(
+    background: _lightBackground,
+    surface: _lightSurface,
+    surfaceVariant: const Color(0xFFF1F5F9),
+    primary: _lightPrimary,
+    primaryContainer: _lightPrimary.withOpacity(0.12),
+    secondary: _lightSecondary,
+    secondaryContainer: _lightSecondary.withOpacity(0.12),
+    accent: _lightAccent,
+    error: const Color(0xFFEF4444),
+    errorContainer: const Color(0xFFEF4444).withOpacity(0.12),
+    onBackground: const Color(0xFF0F172A),
+    onSurface: const Color(0xFF334155),
+    onSurfaceVariant: const Color(0xFF64748B),
+    onPrimary: Colors.white,
+    outline: const Color(0xFFE2E8F0),
+    outlineVariant: const Color(0xFFCBD5E1),
+    shadow: Colors.black.withOpacity(0.08),
+  );
+
+  static ColorPalette dark() => ColorPalette(
+    background: _darkBackground,
+    surface: _darkSurface,
+    surfaceVariant: const Color(0xFF334155),
+    primary: _darkPrimary,
+    primaryContainer: _darkPrimary.withOpacity(0.2),
+    secondary: _darkSecondary,
+    secondaryContainer: _darkSecondary.withOpacity(0.2),
+    accent: _darkAccent,
+    error: const Color(0xFFF87171),
+    errorContainer: const Color(0xFFF87171).withOpacity(0.2),
+    onBackground: const Color(0xFFF1F5F9),
+    onSurface: const Color(0xFFE2E8F0),
+    onSurfaceVariant: const Color(0xFF94A3B8),
+    onPrimary: const Color(0xFF0F172A),
+    outline: const Color(0xFF475569),
+    outlineVariant: const Color(0xFF334155),
+    shadow: Colors.black.withOpacity(0.3),
+  );
 }
 
-class _Scheme {
-  final Color primary;
-  final Color onPrimary;
-  final Color primaryContainer;
-  final Color onPrimaryContainer;
-  final Color secondary;
-  final Color onSecondary;
-  final Color secondaryContainer;
-  final Color onSecondaryContainer;
-  final Color tertiary;
-  final Color onTertiary;
+class ColorPalette {
   final Color background;
-  final Color onBackground;
   final Color surface;
-  final Color onSurface;
   final Color surfaceVariant;
+  final Color primary;
+  final Color primaryContainer;
+  final Color secondary;
+  final Color secondaryContainer;
+  final Color accent;
+  final Color error;
+  final Color errorContainer;
+  final Color onBackground;
+  final Color onSurface;
   final Color onSurfaceVariant;
+  final Color onPrimary;
   final Color outline;
   final Color outlineVariant;
-  final Color error;
-  final Color onError;
-  final Color errorContainer;
-  final Color onErrorContainer;
-  final Color inverseSurface;
-  final Color onInverseSurface;
-  final Brightness brightness;
+  final Color shadow;
 
-  const _Scheme({
-    required this.primary,
-    required this.onPrimary,
-    required this.primaryContainer,
-    required this.onPrimaryContainer,
-    required this.secondary,
-    required this.onSecondary,
-    required this.secondaryContainer,
-    required this.onSecondaryContainer,
-    required this.tertiary,
-    required this.onTertiary,
+  const ColorPalette({
     required this.background,
-    required this.onBackground,
     required this.surface,
-    required this.onSurface,
     required this.surfaceVariant,
+    required this.primary,
+    required this.primaryContainer,
+    required this.secondary,
+    required this.secondaryContainer,
+    required this.accent,
+    required this.error,
+    required this.errorContainer,
+    required this.onBackground,
+    required this.onSurface,
     required this.onSurfaceVariant,
+    required this.onPrimary,
     required this.outline,
     required this.outlineVariant,
-    required this.error,
-    required this.onError,
-    required this.errorContainer,
-    required this.onErrorContainer,
-    required this.inverseSurface,
-    required this.onInverseSurface,
-    required this.brightness,
+    required this.shadow,
   });
 }

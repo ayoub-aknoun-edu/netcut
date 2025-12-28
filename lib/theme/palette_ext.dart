@@ -1,10 +1,11 @@
-import 'package:flutter/widgets.dart';
-import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
-import 'app_palette.dart';
+import 'package:flutter/material.dart';
+import 'app_neumorphic_theme.dart';
 
-extension PaletteX on BuildContext {
-  AppPalette get palette =>
-      NeumorphicTheme.isUsingDark(this) ? AppPalette.dark : AppPalette.light;
-
-  bool get isDark => NeumorphicTheme.isUsingDark(this);
+extension PaletteExt on BuildContext {
+  ColorPalette get palette {
+    final brightness = Theme.of(this).brightness;
+    return brightness == Brightness.light
+        ? AppNeumorphicTheme.light()
+        : AppNeumorphicTheme.dark();
+  }
 }

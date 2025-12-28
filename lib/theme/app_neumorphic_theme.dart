@@ -64,7 +64,7 @@ class AppNeumorphicTheme {
   static NeumorphicThemeData darkTheme() => _build(_dark);
 
   static NeumorphicThemeData _build(_Scheme s) {
-    // flutter_neumorphic_plus theme expects TextTheme (NOT NeumorphicTextThemeData). :contentReference[oaicite:4]{index=4}
+    // flutter_neumorphic_plus theme expects TextTheme (NOT NeumorphicTextThemeData).
     final textTheme = _appTextTheme(s);
 
     // Neumorphic "baseColor" should be the canvas/background the UI sits on.

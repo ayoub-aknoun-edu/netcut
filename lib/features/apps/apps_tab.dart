@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_providers.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
+import 'widgets/app_icon.dart';
 
 class AppsTab extends ConsumerStatefulWidget {
   const AppsTab({super.key});
@@ -26,6 +25,15 @@ class _AppsTabState extends ConsumerState<AppsTab> {
     final appsState = ref.watch(appsControllerProvider);
     final direct = ref.watch(directBlocksControllerProvider);
     final groupsState = ref.watch(groupsControllerProvider);
+
+    // Build a reverse index once per build (package -> list of group names).
+    // This avoids scanning all groups for every visible app row.
+    final appToGroups = <String, List<String>>{};
+    for (final g in groupsState.groups) {
+      for (final pkg in g.packageNames) {
+        (appToGroups[pkg] ??= <String>[]).add(g.name);
+      }
+    }
 
     final allApps = appsState.apps;
 
@@ -100,10 +108,13 @@ class _AppsTabState extends ConsumerState<AppsTab> {
         const SizedBox(height: 12),
         Expanded(
           child: appsState.loading
-              ? const Center(child: Text('Loading…'))
+              ? const Center(child: CircularProgressIndicator())
               : ListView.builder(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
+                  cacheExtent: 1400,
                   itemCount: filtered.length,
                   itemBuilder: (_, i) {
                     final app = filtered[i];
@@ -111,9 +122,8 @@ class _AppsTabState extends ConsumerState<AppsTab> {
                       app.packageName,
                     );
 
-                    final appGroups = groupsState.groups
-                        .where((g) => g.packageNames.contains(app.packageName))
-                        .toList();
+                    final groupNames =
+                        appToGroups[app.packageName] ?? const <String>[];
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -128,7 +138,10 @@ class _AppsTabState extends ConsumerState<AppsTab> {
                         padding: const EdgeInsets.all(12),
                         child: Row(
                           children: [
-                            _AppIcon(iconPng: app.iconPng),
+                            AppIcon(
+                              packageName: app.packageName,
+                              iconPng: app.iconPng,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -151,32 +164,9 @@ class _AppsTabState extends ConsumerState<AppsTab> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (appGroups.isNotEmpty) ...[
+                                  if (groupNames.isNotEmpty) ...[
                                     const SizedBox(height: 6),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: appGroups.map((g) {
-                                        return Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: p.surfaceVariant,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            g.name,
-                                            style: AppTypography.label(
-                                              p.onBackground,
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
+                                    _GroupChips(groupNames: groupNames),
                                   ],
                                 ],
                               ),
@@ -374,7 +364,7 @@ class _AppsTabState extends ConsumerState<AppsTab> {
 }
 
 /// Invisible Material ancestor for Material widgets (TextField, etc).
-/// TextField requires a Material widget ancestor. :contentReference[oaicite:1]{index=1}
+/// TextField requires a Material widget ancestor.
 class _MaterialHost extends StatelessWidget {
   final Widget child;
   const _MaterialHost({required this.child});
@@ -385,31 +375,44 @@ class _MaterialHost extends StatelessWidget {
   }
 }
 
-class _AppIcon extends StatelessWidget {
-  final Uint8List? iconPng;
-  const _AppIcon({required this.iconPng});
+class _GroupChips extends StatelessWidget {
+  final List<String> groupNames;
+  const _GroupChips({required this.groupNames});
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
 
-    return Neumorphic(
-      style: NeumorphicStyle(
-        color: p.surfaceVariant,
-        depth: 2,
-        boxShape: NeumorphicBoxShape.roundRect(BorderRadius.circular(14)),
-      ),
-      padding: const EdgeInsets.all(10),
-      child: SizedBox(
-        width: 38,
-        height: 38,
-        child: iconPng == null
-            ? Icon(Icons.apps_rounded, color: p.onBackground)
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Image.memory(iconPng!, fit: BoxFit.cover),
-              ),
-      ),
-    );
+    // Showing too many chips increases build cost; keep it tight.
+    const maxShown = 2;
+    final shown = groupNames.take(maxShown).toList();
+    final remaining = groupNames.length - shown.length;
+
+    List<Widget> chip(String text) => [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: p.surfaceVariant,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: p.outlineVariant, width: 1),
+            ),
+            child: Text(
+              text,
+              style: AppTypography.label(p.onBackground),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ];
+
+    final widgets = <Widget>[];
+    for (final name in shown) {
+      widgets.addAll(chip(name));
+    }
+    if (remaining > 0) {
+      widgets.addAll(chip('+$remaining'));
+    }
+
+    return Wrap(spacing: 6, runSpacing: 6, children: widgets);
   }
 }

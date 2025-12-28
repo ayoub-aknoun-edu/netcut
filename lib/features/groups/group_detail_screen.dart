@@ -1,10 +1,11 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:netcut/core/platform/firewall_platform.dart';
 import '../../app_providers.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
+import '../apps/widgets/app_icon.dart';
+import 'group_apps_editor_sheet.dart';
 
 class GroupDetailScreen extends ConsumerWidget {
   final String groupId;
@@ -16,7 +17,7 @@ class GroupDetailScreen extends ConsumerWidget {
     final groups = ref.watch(groupsControllerProvider).groups;
     final g = groups.firstWhere((x) => x.id == groupId);
 
-    final appsIndex = ref.watch(appsControllerProvider);
+    final appsByPackage = ref.watch(appsByPackageProvider);
 
     return NeumorphicBackground(
       child: SafeArea(
@@ -42,6 +43,23 @@ class GroupDetailScreen extends ConsumerWidget {
                     style: AppTypography.title(p.onBackground),
                   ),
                 ),
+                NeumorphicButton(
+                  onPressed: () => GroupAppsEditorSheet.show(
+                    context,
+                    groupId: g.id,
+                  ),
+                  style: NeumorphicStyle(
+                    color: p.surfaceVariant,
+                    depth: 2,
+                    boxShape: const NeumorphicBoxShape.circle(),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
+                    Icons.playlist_add_rounded,
+                    color: p.onBackground,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 NeumorphicButton(
                   onPressed: () async {
                     await ref
@@ -104,15 +122,8 @@ class GroupDetailScreen extends ConsumerWidget {
               )
             else
               ...g.packageNames.map((pkg) {
-                final app = appsIndex.apps.firstWhere(
-                  (a) => a.packageName == pkg,
-                  orElse: () => const InstalledApp(
-                    packageName: '',
-                    label: '',
-                    iconPng: null,
-                  ),
-                );
-                final label = app.packageName.isEmpty ? pkg : app.label;
+                final app = appsByPackage[pkg];
+                final label = app?.label ?? pkg;
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -127,6 +138,11 @@ class GroupDetailScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
+                        AppIcon(
+                          packageName: pkg,
+                          iconPng: app?.iconPng,
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,6 +150,8 @@ class GroupDetailScreen extends ConsumerWidget {
                               Text(
                                 label,
                                 style: AppTypography.subtitle(p.onBackground),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
                               Text(
@@ -141,6 +159,8 @@ class GroupDetailScreen extends ConsumerWidget {
                                 style: AppTypography.bodySmall(
                                   p.onSurfaceVariant,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

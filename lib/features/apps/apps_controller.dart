@@ -10,9 +10,11 @@ class AppsState {
 }
 
 class AppsController extends Notifier<AppsState> {
+  Future<void>? _inflight;
+
   @override
   AppsState build() {
-    _load();
+    _inflight ??= _load();
     return AppsState.initial;
   }
 
@@ -21,7 +23,8 @@ class AppsController extends Notifier<AppsState> {
       state = const AppsState(loading: false, apps: []);
       return;
     }
-    final apps = await FirewallPlatform.listLaunchableApps();
+    // Try to load metadata first (fast), icons can be fetched lazily.
+    final apps = await FirewallPlatform.listLaunchableApps(includeIcons: false);
     state = AppsState(loading: false, apps: apps);
   }
 

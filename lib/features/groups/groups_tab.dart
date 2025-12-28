@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_neumorphic_plus/flutter_neumorphic.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app_providers.dart';
@@ -6,6 +6,7 @@ import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
 import 'group_detail_screen.dart';
 import '../../routing/neumorphic_page_route.dart';
+import 'group_apps_editor_sheet.dart';
 
 class GroupsTab extends ConsumerWidget {
   const GroupsTab({super.key});
@@ -66,7 +67,7 @@ class GroupsTab extends ConsumerWidget {
     final p = context.palette;
     final state = ref.watch(groupsControllerProvider);
 
-    if (state.loading) return const Center(child: Text('Loading…'));
+    if (state.loading) return const Center(child: CircularProgressIndicator());
 
     return Column(
       children: [
@@ -146,6 +147,25 @@ class GroupsTab extends ConsumerWidget {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 10),
+                            NeumorphicButton(
+                              onPressed: () => GroupAppsEditorSheet.show(
+                                context,
+                                groupId: g.id,
+                              ),
+                              style: NeumorphicStyle(
+                                color: p.surfaceVariant,
+                                depth: 2,
+                                boxShape:
+                                    const NeumorphicBoxShape.circle(),
+                              ),
+                              padding: const EdgeInsets.all(10),
+                              child: Icon(
+                                Icons.playlist_add_rounded,
+                                color: p.onBackground,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
                             NeumorphicSwitch(
                               value: g.enabled,
                               onChanged: (v) => ref

@@ -38,6 +38,8 @@ class FirewallState {
 }
 
 class FirewallController extends Notifier<FirewallState> {
+  bool _syncedOnce = false;
+
   @override
   FirewallState build() {
     _refreshRunning();
@@ -47,7 +49,14 @@ class FirewallController extends Notifier<FirewallState> {
   Future<void> _refreshRunning() async {
     if (!FirewallPlatform.isAndroid) return;
     final r = await FirewallPlatform.isBlockingActive();
-    state = state.copyWith(running: r);
+    // One-time bootstrap: if the app UI is starting up while the VPN is already running,
+    // reflect that in the switch.
+    if (!_syncedOnce) {
+      _syncedOnce = true;
+      state = state.copyWith(running: r, enabled: r);
+    } else {
+      state = state.copyWith(running: r);
+    }
   }
 
   Future<void> syncFromRules() async {
@@ -73,7 +82,9 @@ class FirewallController extends Notifier<FirewallState> {
 
     if (!enabled) {
       await FirewallPlatform.stopBlocking();
-      state = state.copyWith(running: false);
+      await _refreshRunning();
+      // If it is still running, we keep enabled=false (user intent) and rely on the UI
+      // status text to make it visible.
       return;
     }
 
@@ -86,13 +97,14 @@ class FirewallController extends Notifier<FirewallState> {
     final pkgs = state.blockedPackages.toList()..sort();
     if (pkgs.isEmpty) {
       await FirewallPlatform.stopBlocking();
-      state = state.copyWith(running: false);
+      state = state.copyWith(running: false, enabled: false);
       return;
     }
 
     state = state.copyWith(starting: true);
     final ok = await FirewallPlatform.startBlocking(blockedPackages: pkgs);
-    state = state.copyWith(starting: false, running: ok);
+    state = state.copyWith(starting: false);
+    await _refreshRunning();
 
     if (!ok) {
       state = state.copyWith(enabled: false);

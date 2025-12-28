@@ -13,6 +13,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.LruCache
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -21,6 +22,8 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class MainActivity : FlutterFragmentActivity() {
 
@@ -29,6 +32,22 @@ class MainActivity : FlutterFragmentActivity() {
     private var pendingStartVpn: Boolean = false
     private var pendingBlockedPackages: ArrayList<String>? = null
     private var pendingResult: MethodChannel.Result? = null
+
+    /**
+     * Heavy PackageManager work (listing apps, decoding icons) must not run on the main thread.
+     */
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
+    /**
+     * Simple in-memory icon cache to make scrolling / re-building lists smooth.
+     */
+    private val iconCache = object : LruCache<String, ByteArray>(120) {
+        override fun sizeOf(key: String, value: ByteArray): Int {
+            // LruCache expects a "size" unit. We treat it as KB.
+            val kb = value.size / 1024
+            return if (kb <= 0) 1 else kb
+        }
+    }
 
 
     private val vpnPermissionLauncher =
@@ -52,7 +71,23 @@ class MainActivity : FlutterFragmentActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "listApps" -> result.success(listLaunchableApps())
+                    // NOTE: listApps returns label + package + icon bytes (slow). Prefer listAppsMeta + getAppIcon.
+                    "listApps" -> runAsync(result) { listLaunchableApps(includeIcons = true) }
+
+                    // Fast: label + package only (no icons). Flutter will lazy-load icons via getAppIcon.
+                    "listAppsMeta" -> runAsync(result) { listLaunchableApps(includeIcons = false) }
+
+                    // Lazy per-app icon loader (PNG bytes)
+                    "getAppIcon" -> {
+                        val args = call.arguments as? Map<*, *>
+                        val pkg = args?.get("packageName")?.toString()?.trim().orEmpty()
+                        if (pkg.isEmpty()) {
+                            result.success(null)
+                        } else {
+                            runAsync(result) { getAppIconPng(pkg) }
+                        }
+                    }
+
                     "hasVpnPermission" -> result.success(VpnService.prepare(this) == null)
 
                     "requestVpnPermission" -> {
@@ -67,6 +102,21 @@ class MainActivity : FlutterFragmentActivity() {
 
                     "getSdkInt" -> result.success(android.os.Build.VERSION.SDK_INT)
                     "stopVpn" -> {
+                        // Cancel any pending permission flow starting the VPN after the user has switched OFF.
+                        pendingStartVpn = false
+                        pendingBlockedPackages = null
+
+                        // Ask the running service to stop itself (closes the TUN) then stop it.
+                        try {
+                            startService(
+                                Intent(this, AppBlockVpnService::class.java).apply {
+                                    action = AppBlockVpnService.ACTION_STOP
+                                }
+                            )
+                        } catch (_: Throwable) {
+                            // ignore
+                        }
+
                         stopService(Intent(this, AppBlockVpnService::class.java))
                         result.success(null)
                     }
@@ -90,6 +140,14 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    override fun onDestroy() {
+        try {
+            ioExecutor.shutdownNow()
+        } catch (_: Throwable) {
+        }
+        super.onDestroy()
     }
 
     private fun startVpnWithPermission(blockedPackages: List<String>, result: MethodChannel.Result) {
@@ -122,12 +180,13 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun startVpnService(blockedPackages: ArrayList<String>) {
         val intent = Intent(this, AppBlockVpnService::class.java).apply {
+            action = AppBlockVpnService.ACTION_START_OR_UPDATE
             putStringArrayListExtra(AppBlockVpnService.EXTRA_BLOCKED_PACKAGES, blockedPackages)
         }
         ContextCompat.startForegroundService(this, intent)
     }
 
-    private fun listLaunchableApps(): List<Map<String, Any?>> {
+    private fun listLaunchableApps(includeIcons: Boolean): List<Map<String, Any?>> {
         val pm = packageManager
         val mainIntent = Intent(Intent.ACTION_MAIN, null).addCategory(Intent.CATEGORY_LAUNCHER)
 
@@ -143,11 +202,20 @@ class MainActivity : FlutterFragmentActivity() {
             val pkg = ai.packageName ?: return@mapNotNull null
             val label = pm.getApplicationLabel(ai)?.toString() ?: pkg
 
-            val iconBytes: ByteArray? = try {
-                val drawable = pm.getApplicationIcon(ai)
-                drawableToPng(drawable)
-            } catch (_: Throwable) {
+            val iconBytes: ByteArray? = if (!includeIcons) {
                 null
+            } else {
+                try {
+                    // cache hit
+                    iconCache.get(pkg) ?: run {
+                        val drawable = pm.getApplicationIcon(ai)
+                        val bytes = drawableToPng(drawable)
+                        iconCache.put(pkg, bytes)
+                        bytes
+                    }
+                } catch (_: Throwable) {
+                    null
+                }
             }
 
             mapOf(
@@ -155,6 +223,18 @@ class MainActivity : FlutterFragmentActivity() {
                 "label" to label,
                 "icon" to iconBytes
             )
+        }
+    }
+
+    private fun getAppIconPng(packageName: String): ByteArray? {
+        try {
+            iconCache.get(packageName)?.let { return it }
+            val drawable = packageManager.getApplicationIcon(packageName)
+            val bytes = drawableToPng(drawable)
+            iconCache.put(packageName, bytes)
+            return bytes
+        } catch (_: Throwable) {
+            return null
         }
     }
 
@@ -174,6 +254,23 @@ class MainActivity : FlutterFragmentActivity() {
         val bos = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, bos)
         return bos.toByteArray()
+    }
+
+    private fun <T> runAsync(result: MethodChannel.Result, block: () -> T) {
+        ioExecutor.execute {
+            try {
+                val out = block()
+                runOnUiThread { result.success(out) }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    result.error(
+                        "native_error",
+                        t.message ?: "Native error",
+                        null
+                    )
+                }
+            }
+        }
     }
 
     private fun openBatterySettings() {

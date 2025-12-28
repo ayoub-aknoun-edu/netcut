@@ -209,6 +209,8 @@ class _FirewallCard extends StatelessWidget {
         ? 'Starting…'
         : enabled && running
         ? 'Firewall ON • $blockedCount apps blocked'
+        : !enabled && running
+        ? 'Stopping… (VPN still active)'
         : enabled
         ? 'Enabled • not running'
         : 'Firewall OFF';
@@ -250,7 +252,7 @@ class _FirewallCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           NeumorphicSwitch(
-            value: enabled && requiredOk,
+            value: requiredOk && (enabled || running),
             onChanged: requiredOk ? onToggle : null,
           ),
         ],

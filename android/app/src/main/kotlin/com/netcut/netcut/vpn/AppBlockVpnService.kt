@@ -18,6 +18,8 @@ class AppBlockVpnService : VpnService() {
 
     companion object {
         const val EXTRA_BLOCKED_PACKAGES = "blockedPackages"
+        const val ACTION_START_OR_UPDATE = "com.netcut.netcut.vpn.action.START_OR_UPDATE"
+        const val ACTION_STOP = "com.netcut.netcut.vpn.action.STOP"
         private const val CHANNEL_ID = "netcut_vpn"
         private const val NOTIF_ID = 1001
 
@@ -28,22 +30,42 @@ class AppBlockVpnService : VpnService() {
 
     private var tun: ParcelFileDescriptor? = null
     private var workerThread: Thread? = null
+    private var tunInput: FileInputStream? = null
     private val stopFlag = AtomicBoolean(false)
 
+    @Volatile
+    private var lastBlocked: Set<String> = emptySet()
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    val blocked = intent?.getStringArrayListExtra(EXTRA_BLOCKED_PACKAGES) ?: arrayListOf()
+        // Explicit stop request
+        if (intent?.action == ACTION_STOP) {
+            stopEverything()
+            return Service.START_NOT_STICKY
+        }
 
-    // Safety: never run as "all-app VPN" accidentally
-    if (blocked.isEmpty()) {
-        stopEverything()
-        return Service.START_NOT_STICKY
+        val blocked = intent?.getStringArrayListExtra(EXTRA_BLOCKED_PACKAGES) ?: arrayListOf()
+
+        // Safety: never run as "all-app VPN" accidentally.
+        // Also used when Android restarts a sticky service with a null intent.
+        if (blocked.isEmpty()) {
+            stopEverything()
+            return Service.START_NOT_STICKY
+        }
+
+        val nextSet = blocked.toSet()
+        // Skip unnecessary rebuilds if nothing changed.
+        if (isRunning && nextSet == lastBlocked && tun != null) {
+            startInForeground(blocked.size)
+            return Service.START_STICKY
+        }
+
+        lastBlocked = nextSet
+
+        startInForeground(blocked.size)
+        restartTun(blocked)
+        isRunning = (tun != null)
+        return Service.START_STICKY
     }
-
-    startInForeground(blocked.size)
-    restartTun(blocked)
-    isRunning = true
-    return Service.START_STICKY
-}
 
     override fun onRevoke() {
         stopEverything()
@@ -56,22 +78,25 @@ class AppBlockVpnService : VpnService() {
     }
 
     private fun restartTun(blockedPackages: ArrayList<String>) {
-        stopFlag.set(true)
-        workerThread?.interrupt()
-        workerThread = null
-
-        try { tun?.close() } catch (_: Throwable) {}
-        tun = null
-
+        stopWorker()
         stopFlag.set(false)
 
         val builder = Builder().apply {
             setSession("NetCut (local VPN)")
             setMtu(1500)
 
-            // Minimal config: everything routes into TUN for allowed apps.
+            // Route traffic into TUN for allowed apps.
+            // Include IPv4 and IPv6 so apps cannot bypass blocking via IPv6.
             addAddress("10.0.0.2", 32)
             addRoute("0.0.0.0", 0)
+            addAddress("fd00:1:fd00:1:fd00:1:fd00:1", 128)
+            addRoute("::", 0)
+
+            // Avoid routing NetCut itself through its own VPN.
+            try {
+                addDisallowedApplication(packageName)
+            } catch (_: Throwable) {
+            }
 
             // Only these apps are routed into our VPN (and thus blocked).
             for (pkg in blockedPackages) {
@@ -84,23 +109,31 @@ class AppBlockVpnService : VpnService() {
             }
         }
 
-        tun = builder.establish() ?: return
-        val fd = tun?.fileDescriptor ?: return
+        tun = builder.establish()
+        val fd = tun?.fileDescriptor
+        if (tun == null || fd == null) {
+            stopWorker()
+            return
+        }
 
+        // Read and drop packets. Reading prevents the kernel buffer from filling up.
+        tunInput = FileInputStream(fd)
         workerThread = Thread {
-            val input = FileInputStream(fd)
             val buffer = ByteArray(32767)
             while (!stopFlag.get() && !Thread.currentThread().isInterrupted) {
                 try {
-                    val read = input.read(buffer)
+                    val read = tunInput?.read(buffer) ?: break
                     if (read <= 0) break
-                    // Drop packets = cut internet.
+                    // Intentionally drop packets.
                 } catch (_: Throwable) {
                     break
                 }
             }
-            try { input.close() } catch (_: Throwable) {}
-        }.apply { start() }
+        }.apply {
+            name = "NetCutVpnWorker"
+            isDaemon = true
+            start()
+        }
     }
 
     private fun startInForeground(blockedCount: Int) {
@@ -126,19 +159,41 @@ class AppBlockVpnService : VpnService() {
     }
 
     private fun stopEverything() {
-        stopFlag.set(true)
-        workerThread?.interrupt()
-        workerThread = null
-
-        try { tun?.close() } catch (_: Throwable) {}
-        tun = null
-
+        stopWorker()
         isRunning = false
+        lastBlocked = emptySet()
 
-        // Use legacy stopForeground for max compatibility
-        @Suppress("DEPRECATION")
-        stopForeground(true)
+        // Stop foreground state (and remove the notification) in a compat way.
+        try {
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (_: Throwable) {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
 
         stopSelf()
+    }
+
+    private fun stopWorker() {
+        stopFlag.set(true)
+
+        try {
+            tunInput?.close()
+        } catch (_: Throwable) {
+        }
+        tunInput = null
+
+        workerThread?.interrupt()
+        try {
+            workerThread?.join(300)
+        } catch (_: Throwable) {
+        }
+        workerThread = null
+
+        try {
+            tun?.close()
+        } catch (_: Throwable) {
+        }
+        tun = null
     }
 }

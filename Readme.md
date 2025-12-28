@@ -204,17 +204,6 @@ Contributions are welcome:
 
 ---
 
-## Roadmap (ideas)
-
-- Schedules (block by time/day)
-- Quick Settings tile (toggle firewall)
-- Per-group scheduling
-- Import/export rules
-- “Temporary unblock” timer
-- Better onboarding for OEM battery settings
-
----
-
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

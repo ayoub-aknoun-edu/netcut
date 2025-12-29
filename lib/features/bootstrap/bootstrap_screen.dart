@@ -7,14 +7,32 @@ import '../../theme/app_typography.dart';
 import '../home/home_screen.dart';
 import '../setup/setup_screen.dart';
 
-class BootstrapScreen extends ConsumerWidget {
+class BootstrapScreen extends ConsumerStatefulWidget {
   const BootstrapScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BootstrapScreen> createState() => _BootstrapScreenState();
+}
+
+class _BootstrapScreenState extends ConsumerState<BootstrapScreen> {
+  bool _minDurationPassed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Show splash screen for minimum 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _minDurationPassed = true);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final perms = ref.watch(permissionsControllerProvider);
 
-    if (perms.loading) {
+    if (perms.loading || !_minDurationPassed) {
       return const _SplashScreen();
     }
 
@@ -47,7 +65,11 @@ class _SplashScreen extends StatelessWidget {
                 Container(
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        gradient: LinearGradient(
+                          colors: [p.primary, p.secondary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
@@ -60,13 +82,14 @@ class _SplashScreen extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          // color: Colors.white,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          Icons.shield_rounded,
-                          size: 80,
-                          color: p.primary,
+                        child: Image.asset(
+                          'assets/icon/app_foreground.png',
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     )

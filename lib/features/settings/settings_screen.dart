@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:netcut/theme/app_neumorphic_theme.dart';
 import '../../app_providers.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
+
+final appVersionProvider = FutureProvider<String>((ref) async {
+  try {
+    final packageInfo = await PackageInfo.fromPlatform();
+    return packageInfo.version;
+  } catch (e) {
+    return '1.0.0'; // Fallback to pubspec version
+  }
+});
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -14,6 +24,7 @@ class SettingsScreen extends ConsumerWidget {
     final p = context.palette;
     final perms = ref.watch(permissionsControllerProvider);
     final theme = ref.watch(themeControllerProvider);
+    final version = ref.watch(appVersionProvider);
 
     return Scaffold(
       backgroundColor: p.background,
@@ -268,10 +279,11 @@ class SettingsScreen extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                            child: Icon(
-                              Icons.shield_rounded,
-                              color: Colors.white,
-                              size: 32,
+                            child: Image.asset(
+                              'assets/icon/app_foreground.png',
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.contain,
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -285,10 +297,24 @@ class SettingsScreen extends ConsumerWidget {
                                     p.onBackground,
                                   ).copyWith(fontSize: 20),
                                 ),
-                                Text(
-                                  'Version 1.0.0',
-                                  style: AppTypography.bodySmall(
-                                    p.onSurfaceVariant,
+                                version.when(
+                                  data: (ver) => Text(
+                                    'Version $ver',
+                                    style: AppTypography.bodySmall(
+                                      p.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  loading: () => Text(
+                                    'Version loading...',
+                                    style: AppTypography.bodySmall(
+                                      p.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  error: (_, __) => Text(
+                                    'Version 1.0.0',
+                                    style: AppTypography.bodySmall(
+                                      p.onSurfaceVariant,
+                                    ),
                                   ),
                                 ),
                               ],

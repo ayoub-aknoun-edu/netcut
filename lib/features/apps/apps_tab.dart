@@ -6,6 +6,7 @@ import 'package:netcut/theme/app_neumorphic_theme.dart';
 import '../../app_providers.dart';
 import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
+import 'widgets/app_icon.dart';
 
 class AppsTab extends ConsumerStatefulWidget {
   const AppsTab({super.key});
@@ -391,26 +392,32 @@ class _ModernAppCard extends StatelessWidget {
                             ]
                           : null,
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        color: palette.surfaceVariant,
-                        child: app.iconPng == null
-                            ? Icon(
-                                Icons.apps_rounded,
-                                color: palette.onSurfaceVariant,
-                                size: 32,
-                              )
-                            : Image.memory(
-                                app.iconPng!,
-                                fit: BoxFit.cover,
-                                width: 64,
-                                height: 64,
-                                cacheWidth: 128,
-                                cacheHeight: 128,
-                                gaplessPlayback: true,
-                              ),
-                      ),
+                    // child: ClipRRect(
+                    //   borderRadius: BorderRadius.circular(18),
+                    //   child: Container(
+                    //     color: palette.surfaceVariant,
+                    //     child: app.iconPng == null
+                    //         ? Icon(
+                    //             Icons.apps_rounded,
+                    //             color: palette.onSurfaceVariant,
+                    //             size: 32,
+                    //           )
+                    //         : Image.memory(
+                    //             app.iconPng!,
+                    //             fit: BoxFit.cover,
+                    //             width: 64,
+                    //             height: 64,
+                    //             cacheWidth: 128,
+                    //             cacheHeight: 128,
+                    //             gaplessPlayback: true,
+                    //           ),
+                    //   ),
+                    // ),
+                    child: AppIcon(
+                      packageName: app.packageName,
+                      iconPng: app.iconPng,
+                      size: 64,
+                      radius: 18,
                     ),
                   ),
                 ),

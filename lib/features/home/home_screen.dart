@@ -67,10 +67,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.shield_rounded,
-                      color: Colors.white,
-                      size: 28,
+                    child: Image.asset(
+                      'assets/icon/app_foreground.png',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.contain,
                     ),
                   ),
                   const SizedBox(width: 14),

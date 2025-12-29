@@ -34,10 +34,10 @@ class AppTypography {
   );
 
   static TextStyle body(Color color) => GoogleFonts.inter(
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: FontWeight.w400,
     color: color,
-    height: 1.5,
+    height: 3.3,
   );
 
   static TextStyle bodySmall(Color color) => GoogleFonts.inter(

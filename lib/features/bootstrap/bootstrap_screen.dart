@@ -21,7 +21,7 @@ class _BootstrapScreenState extends ConsumerState<BootstrapScreen> {
   void initState() {
     super.initState();
     // Show splash screen for minimum 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         setState(() => _minDurationPassed = true);
       }

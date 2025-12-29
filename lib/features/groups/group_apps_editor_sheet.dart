@@ -7,31 +7,36 @@ import '../../theme/app_typography.dart';
 import '../../theme/palette_ext.dart';
 import '../apps/widgets/app_icon.dart';
 
-/// Bottom-sheet group app editor used from the Groups tab / group detail.
-///
-/// Optimizations:
-/// - Reuses the global installed-app cache (no second platform fetch).
-/// - Local selection state with a single Save at the end (avoids spamming
-///   SharedPreferences writes and VPN rule re-applies while the user is still
-///   selecting).
 class GroupAppsEditorSheet extends ConsumerStatefulWidget {
   final String groupId;
   const GroupAppsEditorSheet({super.key, required this.groupId});
 
   static Future<void> show(BuildContext context, {required String groupId}) {
-    final p = context.palette;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        return Container(
-          decoration: BoxDecoration(
-            color: p.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      builder: (sheetContext) {
+        final p = sheetContext.palette;
+        final bottomInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
+
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: SafeArea(
+            top: false,
+            child: Container(
+              decoration: BoxDecoration(
+                color: p.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(22),
+                ),
+              ),
+              child: GroupAppsEditorSheet(groupId: groupId),
+            ),
           ),
-          child: GroupAppsEditorSheet(groupId: groupId),
         );
       },
     );
@@ -54,8 +59,9 @@ class _GroupAppsEditorSheetState extends ConsumerState<GroupAppsEditorSheet> {
     final groupsState = ref.watch(groupsControllerProvider);
     final appsState = ref.watch(appsControllerProvider);
 
-    final group =
-        groupsState.groups.where((g) => g.id == widget.groupId).firstOrNull;
+    final group = groupsState.groups
+        .where((g) => g.id == widget.groupId)
+        .firstOrNull;
 
     if (!_seeded && group != null) {
       _selected
@@ -121,95 +127,93 @@ class _GroupAppsEditorSheetState extends ConsumerState<GroupAppsEditorSheet> {
             child: appsState.loading
                 ? const Center(child: CircularProgressIndicator())
                 : filtered.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No apps found',
-                          style: AppTypography.body(p.onSurfaceVariant),
-                        ),
-                      )
-                    : ListView.builder(
-                        addAutomaticKeepAlives: false,
-                        addRepaintBoundaries: true,
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) {
-                          final app = filtered[i];
-                          final selected = _selected.contains(app.packageName);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Neumorphic(
-                              style: NeumorphicStyle(
-                                color: p.surface,
-                                depth: 2,
-                                boxShape: NeumorphicBoxShape.roundRect(
-                                  BorderRadius.circular(16),
+                ? Center(
+                    child: Text(
+                      'No apps found',
+                      style: AppTypography.body(p.onSurfaceVariant),
+                    ),
+                  )
+                : ListView.builder(
+                    addAutomaticKeepAlives: false,
+                    addRepaintBoundaries: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final app = filtered[i];
+                      final selected = _selected.contains(app.packageName);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Neumorphic(
+                          style: NeumorphicStyle(
+                            color: p.surface,
+                            depth: 2,
+                            boxShape: NeumorphicBoxShape.roundRect(
+                              BorderRadius.circular(16),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              AppIcon(
+                                packageName: app.packageName,
+                                iconPng: app.iconPng,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      app.label,
+                                      style: AppTypography.subtitle(
+                                        p.onBackground,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      app.packageName,
+                                      style: AppTypography.bodySmall(
+                                        p.onSurfaceVariant,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              padding: const EdgeInsets.all(12),
-                              child: Row(
-                                children: [
-                                  AppIcon(
-                                    packageName: app.packageName,
-                                    iconPng: app.iconPng,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          app.label,
-                                          style: AppTypography.subtitle(
-                                            p.onBackground,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          app.packageName,
-                                          style: AppTypography.bodySmall(
-                                            p.onSurfaceVariant,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  NeumorphicButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        if (selected) {
-                                          _selected.remove(app.packageName);
-                                        } else {
-                                          _selected.add(app.packageName);
-                                        }
-                                      });
-                                    },
-                                    style: NeumorphicStyle(
-                                      color: selected
-                                          ? p.primaryContainer
-                                          : p.surfaceVariant,
-                                      depth: 2,
-                                      boxShape:
-                                          const NeumorphicBoxShape.circle(),
-                                    ),
-                                    padding: const EdgeInsets.all(10),
-                                    child: Icon(
-                                      selected
-                                          ? Icons.check_rounded
-                                          : Icons.add_rounded,
-                                      color: p.onBackground,
-                                    ),
-                                  ),
-                                ],
+                              const SizedBox(width: 10),
+                              NeumorphicButton(
+                                onPressed: () {
+                                  setState(() {
+                                    if (selected) {
+                                      _selected.remove(app.packageName);
+                                    } else {
+                                      _selected.add(app.packageName);
+                                    }
+                                  });
+                                },
+                                style: NeumorphicStyle(
+                                  color: selected
+                                      ? p.primaryContainer
+                                      : p.surfaceVariant,
+                                  depth: 2,
+                                  boxShape: const NeumorphicBoxShape.circle(),
+                                ),
+                                padding: const EdgeInsets.all(10),
+                                child: Icon(
+                                  selected
+                                      ? Icons.check_rounded
+                                      : Icons.add_rounded,
+                                  color: p.onBackground,
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -232,7 +236,10 @@ class _GroupAppsEditorSheetState extends ConsumerState<GroupAppsEditorSheet> {
               ),
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
-                child: Text('Save', style: AppTypography.button(p.onBackground)),
+                child: Text(
+                  'Save',
+                  style: AppTypography.button(p.onBackground),
+                ),
               ),
             ),
           ),

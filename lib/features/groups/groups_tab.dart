@@ -13,111 +13,20 @@ class GroupsTab extends ConsumerWidget {
   const GroupsTab({super.key});
 
   Future<void> _createDialog(BuildContext context, WidgetRef ref) async {
-    final p = context.palette;
-    final c = TextEditingController();
-
-    await showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: p.surface,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(28),
-              ),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: p.outlineVariant,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [p.primary, p.secondary],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.create_new_folder_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        'Create Group',
-                        style: AppTypography.headline(p.onBackground),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: c,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: 'e.g., Social Media',
-                    filled: true,
-                    fillColor: p.surfaceVariant,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                  ),
-                  style: AppTypography.body(p.onBackground),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (c.text.trim().isEmpty) return;
-                      await ref
-                          .read(groupsControllerProvider.notifier)
-                          .createGroup(c.text);
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: p.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      'Create Group',
-                      style: AppTypography.button(Colors.white),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+      useSafeArea: true,
+
+      // keep this controlled so we can unfocus -> pop safely
+      isDismissible: false,
+      enableDrag: false,
+
+      builder: (sheetContext) {
+        return _CreateGroupSheet(
+          onCreate: (name) =>
+              ref.read(groupsControllerProvider.notifier).createGroup(name),
         );
       },
     );
@@ -231,6 +140,188 @@ class GroupsTab extends ConsumerWidget {
                 ),
         ),
       ],
+    );
+  }
+}
+
+typedef _CreateGroupCallback = Future<void> Function(String name);
+
+class _CreateGroupSheet extends StatefulWidget {
+  const _CreateGroupSheet({required this.onCreate});
+
+  final _CreateGroupCallback onCreate;
+
+  @override
+  State<_CreateGroupSheet> createState() => _CreateGroupSheetState();
+}
+
+class _CreateGroupSheetState extends State<_CreateGroupSheet> {
+  late final TextEditingController _c;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _c.dispose(); // ✅ disposed when the sheet widget is actually disposed
+    super.dispose();
+  }
+
+  Future<void> _close() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    // give the keyboard/selection overlay one tick to settle
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _create() async {
+    if (_saving) return;
+    final name = _c.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _saving = true);
+
+    // important: unfocus before closing/async transitions
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    try {
+      await widget.onCreate(name);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to create group: $e')));
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette; // uses your palette_ext.dart
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _close, // tap outside closes
+      child: Stack(
+        children: [
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {}, // absorb taps on card
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: SafeArea(
+                  top: false,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: p.surface,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(28),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: p.outlineVariant,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [p.primary, p.secondary],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.create_new_folder_rounded,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Text(
+                                  'Create Group',
+                                  style: AppTypography.headline(p.onBackground),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: _close,
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          TextField(
+                            controller: _c,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              hintText: 'e.g., Social Media',
+                              filled: true,
+                              fillColor: p.surfaceVariant,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 16,
+                              ),
+                            ),
+                            style: AppTypography.body(p.onBackground),
+                          ),
+                          const SizedBox(height: 20),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _saving ? null : _create,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: p.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                _saving ? 'Creating...' : 'Create Group',
+                                style: AppTypography.button(Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

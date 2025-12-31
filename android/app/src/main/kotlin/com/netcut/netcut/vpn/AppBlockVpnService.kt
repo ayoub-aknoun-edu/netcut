@@ -43,7 +43,28 @@ class AppBlockVpnService : VpnService() {
             return Service.START_NOT_STICKY
         }
 
-        val blocked = intent?.getStringArrayListExtra(EXTRA_BLOCKED_PACKAGES) ?: arrayListOf()
+        val incoming = intent?.getStringArrayListExtra(EXTRA_BLOCKED_PACKAGES) ?: arrayListOf()
+
+        // Normalize + validate early so:
+        // 1) our "did anything change?" check is stable
+        // 2) we never accidentally establish an all-app VPN
+        val blocked = incoming
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            // Never try to route the host app itself into the VPN.
+            // With an allowed list, excluding it means it simply bypasses the VPN.
+            .filter { it != packageName }
+            .filter {
+                try {
+                    packageManager.getPackageInfo(it, 0)
+                    true
+                } catch (_: Throwable) {
+                    false
+                }
+            }
+            .distinct()
+            .toCollection(ArrayList())
 
         // Safety: never run as "all-app VPN" accidentally.
         // Also used when Android restarts a sticky service with a null intent.
@@ -81,6 +102,13 @@ class AppBlockVpnService : VpnService() {
         stopWorker()
         stopFlag.set(false)
 
+        // IMPORTANT: If the allowed list ends up empty, Android routes ALL apps through the VPN
+        // (and since this VPN intentionally drops packets, that would block everything).
+        if (blockedPackages.isEmpty()) {
+            stopEverything()
+            return
+        }
+
         val builder = Builder().apply {
             setSession("NetCut (local VPN)")
             setMtu(1500)
@@ -92,19 +120,13 @@ class AppBlockVpnService : VpnService() {
             addAddress("fd00:1:fd00:1:fd00:1:fd00:1", 128)
             addRoute("::", 0)
 
-            // Avoid routing NetCut itself through its own VPN.
-            try {
-                addDisallowedApplication(packageName)
-            } catch (_: Throwable) {
-            }
-
             // Only these apps are routed into our VPN (and thus blocked).
+            // Do NOT call addDisallowedApplication() in this mode (AOSP forbids mixing lists).
             for (pkg in blockedPackages) {
                 try {
-                    packageManager.getPackageInfo(pkg, 0)
                     addAllowedApplication(pkg)
                 } catch (_: Throwable) {
-                    // ignore missing apps
+                    // ignore invalid/unavailable apps
                 }
             }
         }
